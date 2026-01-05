@@ -135,8 +135,8 @@ def main():
     # Get initial geoblock status
     geo_data, _ = check_geoblock()
 
-    # Measure latency over 10 calls
-    latencies = measure_latency(num_calls=10)
+    # Measure latency over 20 calls
+    latencies = measure_latency(num_calls=20)
 
     # Display results
     display_results(geo_data, latencies)
