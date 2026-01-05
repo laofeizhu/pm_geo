@@ -121,6 +121,10 @@ def display_results(geo_data: Dict[str, Any], latencies: List[float]) -> None:
         print(f"  Min:        {min_latency:.2f} ms")
         print(f"  Max:        {max_latency:.2f} ms")
 
+        print(f"\n  Individual measurements:")
+        for i, lat in enumerate(latencies, 1):
+            print(f"    Call {i:2d}:  {lat:7.2f} ms")
+
     print("="*50 + "\n")
 
 
