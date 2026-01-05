@@ -74,13 +74,48 @@ def measure_latency(num_calls: int = 10) -> List[float]:
     return latencies
 
 
-def display_results(geo_data: Dict[str, Any], latencies: List[float]) -> None:
+def measure_binance_latency(num_calls: int = 20) -> List[float]:
+    """
+    Measure Binance API latency over multiple calls.
+
+    Args:
+        num_calls: Number of API calls to make (default: 20)
+
+    Returns:
+        list: List of latency measurements in milliseconds
+    """
+    endpoint = "https://api.binance.com/api/v3/ping"
+    latencies = []
+
+    print(f"Measuring Binance API latency over {num_calls} calls...", end="", flush=True)
+
+    for i in range(num_calls):
+        try:
+            start_time = time.perf_counter()
+            response = requests.get(endpoint, timeout=10)
+            end_time = time.perf_counter()
+
+            response.raise_for_status()
+            latency_ms = (end_time - start_time) * 1000
+            latencies.append(latency_ms)
+
+            print(".", end="", flush=True)
+        except requests.RequestException as e:
+            print(f"\nWarning: Call {i+1} failed - {e}", file=sys.stderr)
+            continue
+
+    print(" Done!\n")
+    return latencies
+
+
+def display_results(geo_data: Dict[str, Any], pm_latencies: List[float], binance_latencies: List[float]) -> None:
     """
     Display the geoblock check results in a formatted way.
 
     Args:
         geo_data: Dictionary containing geoblock information
-        latencies: List of latency measurements in milliseconds
+        pm_latencies: List of Polymarket latency measurements in milliseconds
+        binance_latencies: List of Binance latency measurements in milliseconds
     """
     print("="*50)
     print("Polymarket Geoblock Check Results")
@@ -106,24 +141,25 @@ def display_results(geo_data: Dict[str, Any], latencies: List[float]) -> None:
         print("\nYour location can access Polymarket!")
 
     # Display latency statistics
-    if latencies:
-        median_latency = statistics.median(latencies)
-        min_latency = min(latencies)
-        max_latency = max(latencies)
-        avg_latency = statistics.mean(latencies)
+    print(f"\n{'─'*50}")
+    print("Latency Measurements (ms)")
+    print(f"{'─'*50}")
 
-        print(f"\n{'─'*50}")
-        print("Latency Measurements (ms)")
-        print(f"{'─'*50}")
-        print(f"  Calls:      {len(latencies)}")
-        print(f"  Median:     {median_latency:.2f} ms")
-        print(f"  Average:    {avg_latency:.2f} ms")
-        print(f"  Min:        {min_latency:.2f} ms")
-        print(f"  Max:        {max_latency:.2f} ms")
+    if pm_latencies:
+        print(f"\nPolymarket API:")
+        print(f"  Calls:      {len(pm_latencies)}")
+        print(f"  Median:     {statistics.median(pm_latencies):.2f} ms")
+        print(f"  Average:    {statistics.mean(pm_latencies):.2f} ms")
+        print(f"  Min:        {min(pm_latencies):.2f} ms")
+        print(f"  Max:        {max(pm_latencies):.2f} ms")
 
-        print(f"\n  Individual measurements:")
-        for i, lat in enumerate(latencies, 1):
-            print(f"    Call {i:2d}:  {lat:7.2f} ms")
+    if binance_latencies:
+        print(f"\nBinance API:")
+        print(f"  Calls:      {len(binance_latencies)}")
+        print(f"  Median:     {statistics.median(binance_latencies):.2f} ms")
+        print(f"  Average:    {statistics.mean(binance_latencies):.2f} ms")
+        print(f"  Min:        {min(binance_latencies):.2f} ms")
+        print(f"  Max:        {max(binance_latencies):.2f} ms")
 
     print("="*50 + "\n")
 
@@ -136,10 +172,13 @@ def main():
     geo_data, _ = check_geoblock()
 
     # Measure latency over 20 calls
-    latencies = measure_latency(num_calls=20)
+    pm_latencies = measure_latency(num_calls=20)
+
+    # Measure Binance API latency
+    binance_latencies = measure_binance_latency(num_calls=20)
 
     # Display results
-    display_results(geo_data, latencies)
+    display_results(geo_data, pm_latencies, binance_latencies)
 
     # Exit with appropriate code
     sys.exit(1 if geo_data.get('blocked', False) else 0)
