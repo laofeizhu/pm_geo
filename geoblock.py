@@ -3,24 +3,24 @@
 Polymarket Geoblock Checker
 
 This script checks if your current location is blocked from accessing Polymarket
-by querying the Polymarket geoblock API endpoint.
+by querying the Polymarket geoblock API endpoint and measures API latency.
 """
 
 import requests
 import sys
-from typing import Dict, Any
+import time
+import statistics
+from typing import Dict, Any, List, Tuple
 
 
-def check_geoblock() -> Dict[str, Any]:
+def check_geoblock() -> Tuple[Dict[str, Any], float]:
     """
     Check if the current location is blocked by Polymarket.
 
     Returns:
-        dict: Response from the Polymarket geoblock API containing:
-            - blocked (bool): Whether the location is blocked
-            - ip (str): The IP address being checked
-            - country (str): The detected country
-            - region (str): The detected region
+        tuple: (response_data, latency_ms) where:
+            - response_data: Dict with blocked, ip, country, region
+            - latency_ms: Roundtrip latency in milliseconds
 
     Raises:
         requests.RequestException: If the API request fails
@@ -28,22 +28,61 @@ def check_geoblock() -> Dict[str, Any]:
     endpoint = "https://polymarket.com/api/geoblock"
 
     try:
+        start_time = time.perf_counter()
         response = requests.get(endpoint, timeout=10)
+        end_time = time.perf_counter()
+
         response.raise_for_status()
-        return response.json()
+        latency_ms = (end_time - start_time) * 1000
+        return response.json(), latency_ms
     except requests.RequestException as e:
         print(f"Error: Failed to check geoblock status - {e}", file=sys.stderr)
         sys.exit(1)
 
 
-def display_results(geo_data: Dict[str, Any]) -> None:
+def measure_latency(num_calls: int = 10) -> List[float]:
+    """
+    Measure API latency over multiple calls.
+
+    Args:
+        num_calls: Number of API calls to make (default: 10)
+
+    Returns:
+        list: List of latency measurements in milliseconds
+    """
+    endpoint = "https://polymarket.com/api/geoblock"
+    latencies = []
+
+    print(f"Measuring latency over {num_calls} calls...", end="", flush=True)
+
+    for i in range(num_calls):
+        try:
+            start_time = time.perf_counter()
+            response = requests.get(endpoint, timeout=10)
+            end_time = time.perf_counter()
+
+            response.raise_for_status()
+            latency_ms = (end_time - start_time) * 1000
+            latencies.append(latency_ms)
+
+            print(".", end="", flush=True)
+        except requests.RequestException as e:
+            print(f"\nWarning: Call {i+1} failed - {e}", file=sys.stderr)
+            continue
+
+    print(" Done!\n")
+    return latencies
+
+
+def display_results(geo_data: Dict[str, Any], latencies: List[float]) -> None:
     """
     Display the geoblock check results in a formatted way.
 
     Args:
         geo_data: Dictionary containing geoblock information
+        latencies: List of latency measurements in milliseconds
     """
-    print("\n" + "="*50)
+    print("="*50)
     print("Polymarket Geoblock Check Results")
     print("="*50)
 
@@ -66,15 +105,37 @@ def display_results(geo_data: Dict[str, Any]) -> None:
         print("✓ ALLOWED")
         print("\nYour location can access Polymarket!")
 
+    # Display latency statistics
+    if latencies:
+        median_latency = statistics.median(latencies)
+        min_latency = min(latencies)
+        max_latency = max(latencies)
+        avg_latency = statistics.mean(latencies)
+
+        print(f"\n{'─'*50}")
+        print("Latency Measurements (ms)")
+        print(f"{'─'*50}")
+        print(f"  Calls:      {len(latencies)}")
+        print(f"  Median:     {median_latency:.2f} ms")
+        print(f"  Average:    {avg_latency:.2f} ms")
+        print(f"  Min:        {min_latency:.2f} ms")
+        print(f"  Max:        {max_latency:.2f} ms")
+
     print("="*50 + "\n")
 
 
 def main():
     """Main function to run the geoblock checker."""
-    print("Checking Polymarket geoblock status...")
+    print("Checking Polymarket geoblock status...\n")
 
-    geo_data = check_geoblock()
-    display_results(geo_data)
+    # Get initial geoblock status
+    geo_data, _ = check_geoblock()
+
+    # Measure latency over 10 calls
+    latencies = measure_latency(num_calls=10)
+
+    # Display results
+    display_results(geo_data, latencies)
 
     # Exit with appropriate code
     sys.exit(1 if geo_data.get('blocked', False) else 0)
