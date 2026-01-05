@@ -42,7 +42,7 @@ def check_geoblock() -> Tuple[Dict[str, Any], float]:
 
 def measure_latency(num_calls: int = 10) -> List[float]:
     """
-    Measure API latency over multiple calls.
+    Measure API latency over multiple calls using connection reuse.
 
     Args:
         num_calls: Number of API calls to make (default: 10)
@@ -55,20 +55,22 @@ def measure_latency(num_calls: int = 10) -> List[float]:
 
     print(f"Measuring latency over {num_calls} calls...", end="", flush=True)
 
-    for i in range(num_calls):
-        try:
-            start_time = time.perf_counter()
-            response = requests.get(endpoint, timeout=10)
-            end_time = time.perf_counter()
+    # Use Session for connection reuse
+    with requests.Session() as session:
+        for i in range(num_calls):
+            try:
+                start_time = time.perf_counter()
+                response = session.get(endpoint, timeout=10)
+                end_time = time.perf_counter()
 
-            response.raise_for_status()
-            latency_ms = (end_time - start_time) * 1000
-            latencies.append(latency_ms)
+                response.raise_for_status()
+                latency_ms = (end_time - start_time) * 1000
+                latencies.append(latency_ms)
 
-            print(".", end="", flush=True)
-        except requests.RequestException as e:
-            print(f"\nWarning: Call {i+1} failed - {e}", file=sys.stderr)
-            continue
+                print(".", end="", flush=True)
+            except requests.RequestException as e:
+                print(f"\nWarning: Call {i+1} failed - {e}", file=sys.stderr)
+                continue
 
     print(" Done!\n")
     return latencies
@@ -76,7 +78,7 @@ def measure_latency(num_calls: int = 10) -> List[float]:
 
 def measure_binance_latency(num_calls: int = 20) -> List[float]:
     """
-    Measure Binance API latency over multiple calls.
+    Measure Binance API latency over multiple calls using connection reuse.
 
     Args:
         num_calls: Number of API calls to make (default: 20)
@@ -89,20 +91,22 @@ def measure_binance_latency(num_calls: int = 20) -> List[float]:
 
     print(f"Measuring Binance API latency over {num_calls} calls...", end="", flush=True)
 
-    for i in range(num_calls):
-        try:
-            start_time = time.perf_counter()
-            response = requests.get(endpoint, timeout=10)
-            end_time = time.perf_counter()
+    # Use Session for connection reuse
+    with requests.Session() as session:
+        for i in range(num_calls):
+            try:
+                start_time = time.perf_counter()
+                response = session.get(endpoint, timeout=10)
+                end_time = time.perf_counter()
 
-            response.raise_for_status()
-            latency_ms = (end_time - start_time) * 1000
-            latencies.append(latency_ms)
+                response.raise_for_status()
+                latency_ms = (end_time - start_time) * 1000
+                latencies.append(latency_ms)
 
-            print(".", end="", flush=True)
-        except requests.RequestException as e:
-            print(f"\nWarning: Call {i+1} failed - {e}", file=sys.stderr)
-            continue
+                print(".", end="", flush=True)
+            except requests.RequestException as e:
+                print(f"\nWarning: Call {i+1} failed - {e}", file=sys.stderr)
+                continue
 
     print(" Done!\n")
     return latencies
