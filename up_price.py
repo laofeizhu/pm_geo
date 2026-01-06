@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Polymarket Token ID Fetcher
+Polymarket BTC Up Price Fetcher
 
-This script fetches the latest BTC 15-minute up/down token IDs
-from Polymarket's Gamma API.
+This script fetches the latest buy price for the "Up" token
+in the current BTC 15-minute up/down market.
 """
 
 import requests
 import sys
 import time
+import json
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
@@ -136,6 +137,73 @@ def find_btc_15m_markets() -> List[Dict[str, Any]]:
     return markets_found
 
 
+def get_token_price(token_id: str, side: str = "buy") -> Optional[float]:
+    """
+    Get the price for a token from the CLOB API.
+
+    Args:
+        token_id: The token ID to get price for
+        side: "buy" or "sell" (default: "buy")
+
+    Returns:
+        float: The price, or None if failed
+    """
+    try:
+        url = f"https://clob.polymarket.com/price?token_id={token_id}&side={side}"
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        # The price is returned as a string, convert to float
+        price = data.get('price')
+        if price:
+            return float(price)
+        return None
+    except (requests.RequestException, ValueError, KeyError) as e:
+        print(f"Error fetching price: {e}", file=sys.stderr)
+        return None
+
+
+def get_up_token_id(market: Dict[str, Any]) -> Optional[str]:
+    """
+    Extract the "Up" token ID from a market.
+
+    Args:
+        market: Market dictionary
+
+    Returns:
+        str: The token ID for the "Up" outcome, or None if not found
+    """
+    tokens = market.get('tokens', [])
+
+    if tokens:
+        # Look for the token with "Yes" or "Up" outcome
+        for token in tokens:
+            outcome = token.get('outcome', '').lower()
+            if 'yes' in outcome or 'up' in outcome:
+                return token.get('token_id')
+
+        # If not found by name, return first token (usually "Yes"/"Up")
+        if tokens:
+            return tokens[0].get('token_id')
+
+    # Fallback to clobTokenIds (which is a JSON string)
+    clob_token_ids = market.get('clobTokenIds')
+    if clob_token_ids:
+        # Parse the JSON string to get the array
+        if isinstance(clob_token_ids, str):
+            try:
+                clob_token_ids = json.loads(clob_token_ids)
+            except json.JSONDecodeError:
+                return None
+
+        if isinstance(clob_token_ids, list) and len(clob_token_ids) > 0:
+            # First token is usually "Yes"/"Up"
+            return clob_token_ids[0]
+
+    return None
+
+
 def display_market_info(market: Dict[str, Any]) -> None:
     """
     Display detailed information about a market including token IDs.
@@ -181,9 +249,9 @@ def display_market_info(market: Dict[str, Any]) -> None:
 
 
 def main():
-    """Main function to find and display BTC 15m token IDs."""
+    """Main function to find and display BTC 15m Up token buy price."""
     print("="*60)
-    print("BTC 15-Minute Up/Down Market Token ID Fetcher")
+    print("BTC 15-Minute Up/Down Market - Up Token Buy Price")
     print("="*60)
     print()
 
@@ -197,11 +265,36 @@ def main():
         print("Markets typically appear at the start of each 15-minute interval.")
         sys.exit(1)
 
-    print(f"\n✓ Found {len(btc_markets)} BTC 15-minute market(s)\n")
+    print(f"\n✓ Found market\n")
 
-    # Display the market(s)
-    for market in btc_markets:
-        display_market_info(market)
+    market = btc_markets[0]
+
+    # Display basic market info
+    print(f"Market:      {market.get('question', 'N/A')}")
+    print(f"Slug:        {market.get('slug', 'N/A')}")
+    print(f"Market ID:   {market.get('id', 'N/A')}")
+    print(f"End Date:    {market.get('endDate', 'N/A')}")
+
+    # Get the Up token ID
+    up_token_id = get_up_token_id(market)
+
+    if not up_token_id:
+        print("\nError: Could not find Up token ID")
+        sys.exit(1)
+
+    print(f"\nUp Token ID: {up_token_id}")
+
+    # Get the buy price
+    print("\nFetching buy price from CLOB API...")
+    buy_price = get_token_price(up_token_id, side="buy")
+
+    if buy_price is not None:
+        print(f"\n{'='*60}")
+        print(f"UP TOKEN BUY PRICE: ${buy_price:.4f}")
+        print(f"{'='*60}")
+    else:
+        print("\nError: Could not fetch buy price")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
